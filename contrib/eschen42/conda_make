@@ -1,0 +1,25 @@
+#!/bin/sh
+if [ $# -eq 0 ]; then set all install; fi  # "$@" breaks make for empty args
+# find /usr/local/bin or equivalent, e.g., $CONDA_PREFIX/bin
+NOWEB_BASE="$(dirname $(dirname $(readlink -f $(which make))))"
+
+# hack to install without texlive installed
+which texhash || TEMP_TEXHASH=1
+if [ ! -z "$TEMP_TEXHASH" ]; then
+  mkdir -p "$NOWEB_BASE/bin"
+  echo 'exit 0' > "$NOWEB_BASE/bin/texhash"
+  chmod +x "$NOWEB_BASE/bin/texhash" && echo created "$NOWEB_BASE/bin/texhash"
+  fi
+
+# make ('make all install' by default)
+`which make` CC='gcc -pedantic -O -Wall -Werror' LIBSRC=icon BIN="$NOWEB_BASE/bin" LIB="$NOWEB_BASE/lib/noweb" MAN="$NOWEB_BASE/man" TEXINPUTS="$NOWEB_BASE/lib/tex/inputs" "$@"
+RESULT=$?
+
+# revert hack to install without texlive installed
+if [ ! -z "$TEMP_TEXHASH" ]; then
+  rm "$NOWEB_BASE/bin/texhash" && echo removed "$NOWEB_BASE/bin/texhash"
+  fi
+
+# produce result of make
+echo exit $RESULT
+exit $RESULT

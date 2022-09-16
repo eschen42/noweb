@@ -1,0 +1,193 @@
+%!/bin/bash
+@
+
+# Motivation
+
+Conda ([https://conda.io/](https://conda.io/)) packages provide command-line software packaged into reproducible, pre-built environments to ensure that the dependencies are met for the packaged software.
+
+I want to create a `noweb` Conda package.
+
+I have previously created packages for `The Icon Programming Language` ([https://www2.cs.arizona.edu/icon/](https://www2.cs.arizona.edu/icon/)) in Linux ([https://anaconda.org/conda-forge/icon](https://anaconda.org/conda-forge/icon)) and Windows x64 ([https://anaconda.org/eschen42/icon](https://anaconda.org/eschen42/icon)).
+
+This file describes how to create an Icon-native `noweb` implementation that can be built into a Conda package.
+
+## N.B.: Executable lines in README.nw
+
+Code listings beginning with a line that starts with "&lt;<*>>=" are extracted for execution.
+
+## N.B.: Bootstrapping the script to build `noweb`
+
+This `README.nw` can be processed by `noweb` to produce a `bash` script that can build `noweb`.  That begs the question of how to create the script without `noweb`.  The answer is to use `sed` to extract the script, e.g., with the command:
+
+```bash
+
+# this is in bootstrap.sh
+bash -i <(sed -e '1 s/^%/#/; /^@/,/^[<][<]/ d' README.nw) > /dev/null
+```
+
+Note that the preceding line of code is NOT extracted or executed from `README.nw`.
+
+# Building `noweb` within Conda
+
+## Step 0: install Conda if necessary
+
+Because I plan release this through the `conda-forge` conda channel ([https://conda-forge.org/](https://conda-forge.org/)), I install the `miniforge` distribution, specifically the Mamba/PyPy3 variant ([https://github.com/conda-forge/miniforge/#mambaforge-pypy3](https://github.com/conda-forge/miniforge/#mambaforge-pypy3)).
+
+```sh
+<<*>>=
+
+# Adjust the name of the conda enviroment if you so desire
+NOWEB_ENV_NAME=noweb
+
+# You may choose to alter these depending on which version
+#   of miniconda/miniforge you wish to install
+CONDA=mamba
+MAMBA_ROOT=~/mambaforge-pypy3
+MAMBA_INSTALLER_SH="Mambaforge-pypy3-$(uname)-$(uname -m).sh"
+
+# make sure that this is invoked interactively
+#   ref: https://serverfault.com/a/146747
+if [[ $- != *i* ]]
+then
+  echo "It is necessary to invoke $0 with bash and the '-i' option, e.g.:"
+  echo "   bash -i '. forge_fetch.sh'"
+  exit 1
+fi
+
+# install conda framework if not installed already
+which $CONDA > /dev/null
+if [ 0 -ne $? ]; then
+  if [ -z "$CONDA_PREFIX" ]; then
+    if [ ! -d ${MAMBA_ROOT} ]; then
+      if [ ! -f $MAMBA_INSTALLER_SH ]; then
+        curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/$MAMBA_INSTALLER_SH"
+        if [ ! -f $MAMBA_INSTALLER_SH ]; then
+          echo "Failed to download $MAMBA_INSTALLER_SH"
+          exit 1
+          fi
+        fi
+      bash $MAMBA_INSTALLER_SH -b
+      . ${MAMBA_ROOT}/bin/activate
+      $CONDA init bash
+      echo "Please execute:"
+      echo "  bash -lic '. $0'" 
+      echo "Then log out (or do the equivalent); then please call $0 again."
+      exit 1
+      fi
+    fi
+  if [ -z "$CONDA_PREFIX" ]; then
+    if [ ! -f ${MAMBA_ROOT}/bin/activate ] ; then
+      echo cannot find ${MAMBA_ROOT}/bin/activate
+      exit 1
+      fi
+    . ${MAMBA_ROOT}/bin/activate
+    fi
+  if [ 0 -ne $? ] ; then
+    echo failed to activate $CONDA_PREFIX/bin/activate
+    exit 1
+    fi
+  fi
+# now we have mamba or conda; decide which
+which $CONDA > /dev/null
+if [ 0 -ne $? ]; then
+  echo cannot proceed because $CONDA not found on path
+  exit 1
+  fi
+@
+```
+
+## Step 1: install or build `noweb` Conda environmnt
+
+Build the conda environment named `noweb` if it does not exist and is also unavailable on conda-forge
+
+```sh
+<<*>>=
+
+conda activate $NOWEB_ENV_NAME
+# install the noweb environment from conda-forge if possible
+if [ 0 -ne $? ]; then
+  echo $CONDA create -n $NOWEB_ENV_NAME -y -c conda-forge noweb
+  fi
+# only create noweb environment if it still does not exist
+conda activate $NOWEB_ENV_NAME
+if [ 0 -ne $? ]; then
+  $CONDA create -n $NOWEB_ENV_NAME -c conda-forge make binutils gcc icon
+  fi
+
+@
+```
+
+## Step 2: activate the `noweb` Conda environmnt
+
+Activate the conda "noweb" environment
+
+```sh
+<<*>>=
+
+conda activate $NOWEB_ENV_NAME
+if [ 0 -ne $? ]; then
+  echo $CONDA could neither create nore install $NOWEB_ENV_NAME 
+  exit 1
+  fi
+@
+```
+
+## Step 3: build `noweb` (finally)
+
+This will extract and show the code in this README.nw file.
+
+```sh
+<<*>>=
+
+chmod +x conda_make
+pushd ../../src
+ln -f -s ../contrib/eschen42/conda_make conda_make
+./conda_make all install
+popd
+@
+```
+
+## Step 4: demonstrate `noweb` with this file
+
+This will extract and show the code in this README.nw file.
+
+```sh
+<<*>>=
+
+conda activate $NOWEB_ENV_NAME
+if [ 0 -ne $? ]; then
+  echo $CONDA could not activate $NOWEB_ENV_NAME 
+  exit 1
+  fi
+echo '#!'"/bin/bash" > README.sh
+notangle README.nw >> README.sh
+sed -e '1 s/^%/#/; /^@/,/^[<][<]/ d' README.nw > README.sh.expected
+#echo foo >> README.sh.expected
+which md5sum > /dev/null
+if [ 0 -ne $? ]; then
+  1>&2 echo wc README.sh.expected README.sh
+  1>&2 wc README.sh.expected README.sh
+else
+  1>&2 echo md5sum README.sh.expected README.sh
+  1>&2 md5sum README.sh.expected README.sh
+  fi
+diff README.sh.expected README.sh > README.sh.diff
+RESULT=$?
+if [ 0 -ne $RESULT ]; then
+  1>&2 echo "diff of results with expectations:"
+  1>&2 more README.sh.diff
+  fi
+exit $RESULT
+@
+```
+
+Also note that Greyson Fischer's
+[`noscript`](https://github.com/nrnrnr/noweb/blob/master/contrib/fischer/noscript-0.1/noscript)
+command could be used to execute `README.nw` directly, e.g.:
+```sh
+noscript README.nw
+```
+
+The final line of README.nw is here to support boostrapping with `sed`.
+
+<<*>>=
