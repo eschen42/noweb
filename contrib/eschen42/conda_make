@@ -15,7 +15,7 @@ NOWEB_BASE="$(dirname $(dirname $(readlink -f $(which make))))"
 if [ ! -e ${GIT_BASE} ]; then
   TEMP_HEADS_BASE=${GIT_BASE}
   mkdir -p $GIT_HEADS && echo "created $GIT_HEADS"
-  echo "Please disregard messages about 'not a Git repository'"
+  1>&2 echo "Please disregard messages about 'not a Git repository'"
 else
   TEMP_HEADS_BASE=''
   fi
@@ -36,15 +36,21 @@ if [ ! -z "$TEMP_TEXHASH" ]; then
   chmod +x "$NOWEB_BASE/bin/texhash" && echo "created $NOWEB_BASE/bin/texhash"
   fi
 
+# declare make invocation
+make_invocation ()
+{
+  `which make` \
+    BIN="$NOWEB_BASE/bin" \
+    CC='gcc -pedantic -O -Wall -Werror' \
+    LIB="$NOWEB_BASE/lib/noweb" \
+    LIBSRC=icon \
+    MAN="$NOWEB_BASE/man" \
+    TEXINPUTS="$NOWEB_BASE/lib/tex/inputs" \
+    "$@"
+}
+
 # make ('make all install' by default)
-`which make` \
-  BIN="$NOWEB_BASE/bin" \
-  CC='gcc -pedantic -O -Wall -Werror' \
-  LIB="$NOWEB_BASE/lib/noweb" \
-  LIBSRC=icon \
-  MAN="$NOWEB_BASE/man" \
-  TEXINPUTS="$NOWEB_BASE/lib/tex/inputs" \
-  "$@"
+make_invocation
 RESULT=$?
 
 # revert hack to install without texlive installed

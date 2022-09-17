@@ -177,6 +177,9 @@ RESULT=$?
 if [ 0 -ne $RESULT ]; then
   1>&2 echo "diff of results with expectations:"
   1>&2 more README.sh.diff
+else
+  rm README.sh.expected README.sh
+  cat <(echo '#!/bin/bash -i') <(nountangle -icn README.nw) > README.sh
   fi
 exit $RESULT
 @
