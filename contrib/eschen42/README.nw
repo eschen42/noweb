@@ -1,4 +1,4 @@
-%!/bin/bash
+%!/bin/bash -i
 @
 
 # Motivation
@@ -160,7 +160,7 @@ if [ 0 -ne $? ]; then
   echo $CONDA could not activate $NOWEB_ENV_NAME 
   exit 1
   fi
-echo '#!'"/bin/bash" > README.sh
+echo '#!'"/bin/bash -i" > README.sh
 notangle README.nw >> README.sh
 sed -e '1 s/^%/#/; /^@/,/^[<][<]/ d' README.nw > README.sh.expected
 #echo foo >> README.sh.expected
