@@ -47,8 +47,9 @@ MAMBA_INSTALLER_SH="Mambaforge-pypy3-$(uname)-$(uname -m).sh"
 
 # make sure that this is invoked interactively
 #   ref: https://serverfault.com/a/146747
-if [[ $- != *i* ]]
-then
+echo "$-" | grep '.*i.*' > /dev/null
+if [ 0 -ne $? ]; then
+  echo "$0:" '$- is "'"$-"'".'
   echo "It is necessary to invoke $0 with bash and the '-i' option, e.g.:"
   echo "   bash -i '. forge_fetch.sh'"
   exit 1
