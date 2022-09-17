@@ -141,10 +141,10 @@ This will extract and show the code in this README.nw file.
 <<*>>=
 
 chmod +x conda_make
-pushd ../../src
+pushd ../../src > /dev/null
 ln -f -s ../contrib/eschen42/conda_make conda_make
 ./conda_make all install
-popd
+popd > /dev/null
 @
 ```
 

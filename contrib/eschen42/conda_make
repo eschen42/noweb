@@ -4,15 +4,26 @@
 if [ $# -eq 0 ]; then set all install; fi  # "$@" breaks make for empty args
 
 # find location of heads from location of this script
-GIT_HEADS=$(dirname $(readlink -f $0))/../../.git/refs/heads
+GIT_BASE=$(dirname $(readlink -f $0))/../../.git
+GIT_HEADS=${GIT_BASE}/refs/heads
+GIT_MASTER=${GIT_HEADS}/master
 
 # find /usr/local/bin or equivalent, e.g., $CONDA_PREFIX/bin
 NOWEB_BASE="$(dirname $(dirname $(readlink -f $(which make))))"
 
+# hack to install without pre-existing ../../.git
+if [ ! -e ${GIT_BASE} ]; then
+  TEMP_HEADS_BASE=${GIT_BASE}
+  mkdir -p $GIT_HEADS && echo "created $GIT_HEADS"
+  echo "Please disregard messages about 'not a Git repository'"
+else
+  TEMP_HEADS_BASE=''
+  fi
+
 # hack to install without pre-existing ../../.git/refs/heads/master
-if [ ! -e $GIT_HEADS/master ]; then
-  TEMP_HEADS_MASTER=$GIT_HEADS/master
-  echo '' > $TEMP_HEADS_MASTER
+if [ ! -e ${GIT_MASTER} ]; then
+  TEMP_HEADS_MASTER=${GIT_MASTER}
+  echo '' > $TEMP_HEADS_MASTER && echo "created $TEMP_HEADS_MASTER"
 else
   TEMP_HEADS_MASTER=''
   fi
@@ -22,7 +33,7 @@ which texhash || TEMP_TEXHASH=1
 if [ ! -z "$TEMP_TEXHASH" ]; then
   mkdir -p "$NOWEB_BASE/bin"
   echo 'exit 0' > "$NOWEB_BASE/bin/texhash"
-  chmod +x "$NOWEB_BASE/bin/texhash" && echo created "$NOWEB_BASE/bin/texhash"
+  chmod +x "$NOWEB_BASE/bin/texhash" && echo "created $NOWEB_BASE/bin/texhash"
   fi
 
 # make ('make all install' by default)
@@ -38,12 +49,18 @@ RESULT=$?
 
 # revert hack to install without texlive installed
 if [ ! -z "$TEMP_TEXHASH" ]; then
-  rm "$NOWEB_BASE/bin/texhash" && echo removed "$NOWEB_BASE/bin/texhash"
+  rm "$NOWEB_BASE/bin/texhash" && echo "removed $NOWEB_BASE/bin/texhash"
   fi
 
 # revert hack to install without pre-existing ../../.git/refs/heads/master
 if [ ! -z "$TEMP_HEADS_MASTER" ]; then
-  rm $TEMP_HEADS_MASTER
+  rm $TEMP_HEADS_MASTER && echo "removed $TEMP_HEADS_MASTER"
+
+  fi
+
+# revert hack to install without pre-existing ../../.git
+if [ ! -z "$TEMP_HEADS_BASE" ]; then
+  rm -rf $TEMP_HEADS_BASE && echo "removed $TEMP_HEADS_BASE"
   fi
 
 # produce result of make
