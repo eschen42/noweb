@@ -5,11 +5,11 @@
 
 Conda ([https://conda.io/](https://conda.io/)) packages provide command-line software packaged into reproducible, pre-built environments to ensure that the dependencies are met for the packaged software.
 
-I want to create a `noweb` Conda package.
+I want to create a `noweb` Conda package, eventually.  This work is a prerequisite for that.
 
 I have previously created packages for `The Icon Programming Language` ([https://www2.cs.arizona.edu/icon/](https://www2.cs.arizona.edu/icon/)) in Linux ([https://anaconda.org/conda-forge/icon](https://anaconda.org/conda-forge/icon)) and Windows x64 ([https://anaconda.org/eschen42/icon](https://anaconda.org/eschen42/icon)).
 
-This file describes how to create an Icon-native `noweb` implementation that can be built into a Conda package.
+This file describes how to create an Icon-native `noweb` implementation that can be built into a Conda environment.
 
 ## N.B.: Executable lines in README.nw
 
@@ -20,9 +20,13 @@ Code listings beginning with a line that starts with "&lt;<*>>=" are extracted f
 This `README.nw` can be processed by `noweb` to produce a `bash` script that can build `noweb`.  That begs the question of how to create the script without `noweb`.  The answer is to use `sed` to extract the script, e.g., with the command:
 
 ```bash
+<<*>>=
 
-# this is in bootstrap.sh
-bash -i <(sed -e '1 s/^%/#/; /^@/,/^[<][<]/ d' README.nw) > /dev/null
+cat >bootstrap.sh <<'EOF'
+# bootstrap the noweb conda build without having noweb
+bash -i <(sed -e '1 s/^%/#/; /^@/,/^[<][<]/ d' README.nw) > bootstrap_log.txt
+EOF
+@
 ```
 
 Note that the preceding line of code is NOT extracted or executed from `README.nw`.
@@ -135,11 +139,103 @@ if [ 0 -ne $? ]; then
 
 ## Step 3: build `noweb` (finally)
 
-This will extract and show the code in this README.nw file.
+### `conda_make`
+
+Building `noweb` in the `noweb` Conda environment required
+some specializations for `make`, which it applies
+before and after invoking `make`.
+
+`conda_make` provides these:
 
 ```sh
 <<*>>=
 
+cat >conda_make <<'EOF'
+#!/bin/sh
+
+# set default args
+if [ $# -eq 0 ]; then set all install; fi  # "$@" breaks make for empty args
+
+# find location of heads from location of this script
+GIT_BASE=$(dirname $(readlink -f $0))/../../.git
+GIT_HEADS=${GIT_BASE}/refs/heads
+GIT_MASTER=${GIT_HEADS}/master
+
+# find /usr/local/bin or equivalent, e.g., $CONDA_PREFIX/bin
+NOWEB_BASE="$(dirname $(dirname $(readlink -f $(which make))))"
+
+# hack to install without pre-existing ../../.git
+if [ ! -e ${GIT_BASE} ]; then
+  TEMP_HEADS_BASE=${GIT_BASE}
+  mkdir -p $GIT_HEADS && echo "created $GIT_HEADS"
+  1>&2 echo "Please disregard messages about 'not a Git repository'"
+else
+  TEMP_HEADS_BASE=''
+  fi
+
+# hack to install without pre-existing ../../.git/refs/heads/master
+if [ ! -e ${GIT_MASTER} ]; then
+  TEMP_HEADS_MASTER=${GIT_MASTER}
+  echo '' > $TEMP_HEADS_MASTER && echo "created $TEMP_HEADS_MASTER"
+else
+  TEMP_HEADS_MASTER=''
+  fi
+
+# hack to install without texlive installed
+which texhash || TEMP_TEXHASH=1
+if [ ! -z "$TEMP_TEXHASH" ]; then
+  mkdir -p "$NOWEB_BASE/bin"
+  echo 'exit 0' > "$NOWEB_BASE/bin/texhash"
+  chmod +x "$NOWEB_BASE/bin/texhash" && echo "created $NOWEB_BASE/bin/texhash"
+  fi
+
+# declare make invocation
+make_invocation ()
+{
+  `which make` \
+    BIN="$NOWEB_BASE/bin" \
+    CC='gcc -pedantic -O -Wall -Werror' \
+    LIB="$NOWEB_BASE/lib/noweb" \
+    LIBSRC=icon \
+    MAN="$NOWEB_BASE/man" \
+    TEXINPUTS="$NOWEB_BASE/lib/tex/inputs" \
+    "$@"
+}
+
+# make ('make all install' by default)
+make_invocation
+RESULT=$?
+
+# revert hack to install without texlive installed
+if [ ! -z "$TEMP_TEXHASH" ]; then
+  rm "$NOWEB_BASE/bin/texhash" && echo "removed $NOWEB_BASE/bin/texhash"
+  fi
+
+# revert hack to install without pre-existing ../../.git/refs/heads/master
+if [ ! -z "$TEMP_HEADS_MASTER" ]; then
+  rm $TEMP_HEADS_MASTER && echo "removed $TEMP_HEADS_MASTER"
+
+  fi
+
+# revert hack to install without pre-existing ../../.git
+if [ ! -z "$TEMP_HEADS_BASE" ]; then
+  rm -rf $TEMP_HEADS_BASE && echo "removed $TEMP_HEADS_BASE"
+  fi
+
+# produce result of make
+echo exit $RESULT
+exit $RESULT
+EOF
+
+@
+```
+
+### build `noweb` using `conda_make`
+
+This will extract and show the code in this README.nw file.
+
+```sh
+<<*>>=
 chmod +x conda_make
 pushd ../../src > /dev/null
 ln -f -s ../contrib/eschen42/conda_make conda_make
